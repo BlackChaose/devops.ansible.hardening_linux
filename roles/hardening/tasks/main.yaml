@@ -1,0 +1,33 @@
+#- name: Install or update PyPy
+#  when: python_version is failed or 'Python 3' not in python_version.stdout
+#  raw: |
+#    if egrep '(Debian|Ubuntu)' /etc/os-release -q; then \
+#      apt update; \
+#      apt -y install python3 python-setuptools python3-setuptools && update-alternatives --install /usr/bin/python python /usr/bin/python3 10; \
+#    else \
+#      mkdir --parents /opt/bin && \
+#      curl --silent --show-error --location https://github.com//squeaky-pl/portable-pypy/releases/download/{{ pypy_version }}/{{ pypy_version }}-linux_x86_64-portable.tar.bz2 | tar xjf - --directory=/tmp && \
+#      mv --force /tmp/{{ pypy_version }}-linux_x86_64-portable /opt/pypy && \
+#      ln --symbolic --no-dereference --force /opt/pypy/bin/pypy /opt/bin/python; \
+#    fi
+#  changed_when: false
+
+- name: get python version
+  raw: |
+    python --version 2>&1
+  register: python_version
+  ignore_errors: yes
+
+- name: message check python version
+  ansible.builtin.debug:
+    msg: "{{python_version.stdout | regex_search('(?<=Python )...')}}"
+  register: python_version_num
+
+#- name: Install Python ver. 3.10 from source
+#  when: python_version is failed
+#  raw: |
+#    if egrep '(Debian|Ubuntu)' /etc/os-release -q; then \
+#      apt update; \
+#      apt -y install python3 python-setuptools python3-setuptools && update-alternatives --install /usr/bin/python python /usr/bin/python3 10; \
+#    fi
+#  changed_when: false

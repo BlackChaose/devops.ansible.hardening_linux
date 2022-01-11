@@ -1,0 +1,6 @@
+- name: lab hardening
+  become: true
+  hosts: debian_servers
+  gather_facts: no
+  roles:
+  - hardening
