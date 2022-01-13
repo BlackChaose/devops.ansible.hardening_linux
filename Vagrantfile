@@ -14,7 +14,7 @@ Vagrant.configure("2") do |config|
   config.vm.define "HW1-#{machine_id}" do |n|
    n.vm.hostname = "HW1-#{machine_id}"
    n.vm.network "private_network", ip: "192.168.56.211"
-   n.vm.box = "centos/7"
+   n.vm.box = "centos/8"
   end
 
 #machine_id = 2
@@ -24,18 +24,18 @@ Vagrant.configure("2") do |config|
 #   n.vm.box = "debian/jessie64"
 #  end
 
-#machine_id = 3
-#  config.vm.define "HW1-#{machine_id}" do |n|
-#   n.vm.hostname = "HW1-#{machine_id}"
-#   n.vm.network "private_network", ip: "192.168.56.213"
-#   n.vm.box = "ubuntu/focal64"
-#  end
+machine_id = 3
+  config.vm.define "HW1-#{machine_id}" do |n|
+   n.vm.hostname = "HW1-#{machine_id}"
+   n.vm.network "private_network", ip: "192.168.56.213"
+   n.vm.box = "ubuntu/focal64"
+  end
 
 #machine_id = 4
 #  config.vm.define "HW1-#{machine_id}" do |n|
 #   n.vm.hostname = "HW1-#{machine_id}"
 #   n.vm.network "private_network", ip: "192.168.56.214"
-#   n.vm.box = "iamseth/rhel-7.3"
+#   n.vm.box = "centos/7"
 #   n.vm.box_version = "1.0.0"
 #  end
 end

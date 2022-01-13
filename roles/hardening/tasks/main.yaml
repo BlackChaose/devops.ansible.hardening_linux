@@ -1,6 +1,5 @@
 - name: get python version
   raw: |
-
     if(which python3); then \
      python3 --version 2>&1; \
     elif(which python); then \
@@ -17,25 +16,28 @@
   register: python_version_num
 
 - name: Install Python ver. 3.10 from source
-  when: python_version_num.msg == "no!" or python_version_num.msg not in ["3.6.", "3.7.", "3.8.", "3.9.", "3.10"]
+  when: python_version_num.msg == "no!" or python_version_num.msg not in ["3.7.", "3.8.", "3.9.", "3.10"]
   raw: |
     if egrep '(Debian|Ubuntu)' /etc/os-release -q; then \
-      sudo apt-get install -y wget; \
       sudo apt-get update; \
-      sudo apt-get install -y build-essential gdb lcov pkg-config libbz2-dev libffi-dev libgdbm-dev libgdbm-compat-dev liblzma-dev libncurses5-dev libreadline6-dev libsqlite3-dev libssl-dev lzma lzma-dev tk-dev uuid-dev zlib1g-dev python3-pexpect; \
+      sudo apt-get install -y wget build-essential gdb lcov pkg-config libbz2-dev libffi-dev libgdbm-dev libgdbm-compat-dev liblzma-dev libncurses5-dev libreadline6-dev libsqlite3-dev libssl-dev lzma lzma-dev tk-dev uuid-dev zlib1g-dev python3-pexpect; \
     elif egrep '(CentOS|Red Hat)' /etc/os-release -q; then \
-      sudo yum install -y wget
-      sudo yum install -y yum-utils
-      sudo yum-builddep -y python3
-    fi; \
+      sudo yum -y update; \
+      sudo yum install -y wget yum-utils make gcc openssl-devel libffi-devel zlib-devel; \
+      sudo yum-builddep -y python3; \
+      echo "etap 1" >> 1.txt
+    fi
       wget https://www.python.org/ftp/python/3.10.1/Python-3.10.1.tar.xz; \
       tar -xvf ./Python-3.10.1.tar.xz; \
       cd ./Python-3.10.1; \
-      ./configure; \
-      make; \
-      make install; \
+      echo "pre configure" >> /home/vagrant/1.txt
+      sudo ./configure; \
+      echo "pre make" >> /home/vagrant/1.txt
+      sudo make; \
+      echo "pre install" >> /home/vagrant/1.txt
+      sudo make install; \
+      echo "pre ln -sf" >> /home/vagrant/1.txt
       sudo ln -sf /usr/local/bin/python3 /usr/bin/python3; \
-
   changed_when: false
 
 - name: Get timezone
@@ -44,7 +46,7 @@
 
 - name: filter tz
   ansible.builtin.debug:
-    msg: "{{ tz.stdout | regex_search('(?<=Time zone: )[a-zA-Z]+')}}"
+    msg: "{{ tz.stdout | regex_search('(?<=Time zone: )[a-zA-Z\/]+')}}"
   register: timezone
 
 - name: Set timezone to Europe/Moscow
@@ -53,12 +55,16 @@
     name: Europe/Moscow
 
 - name: Get ntp status
-  raw: |
-    timedatectl | grep -Po '(?<=NTP service: ).*'; \
+  ansible.builtin.command: timedatectl
   register: ntp_status
 
+- name: Filter ntp_status
+  ansible.builtin.debug:
+    msg: "{{ ntp_status.stdout | regex_search('(?<=NTP service: ).*')}}"
+  register: ntp_status_filtered
+
 - name: Enable ntp
-  when: ntp_status.stdout_lines[1] == "inactive"
+  when: ntp_status_filtered.msg == "inactive"
   shell: sudo timedatectl set-ntp on
 
 - name: check installed fail2ban
@@ -69,30 +75,30 @@
     systemctl status "fail2ban.service" | grep -Po '(?<=Active: )\S+'
     fi; \
   register: check_fail2ban
+  ignore_errors: yes
 
-- name: instll  epel-release for CentOS
-  when: check_fail2ban.stdout_lines[1] != "install" and check_fail2ban.stdout_lines[1] != "active" and check_fail2ban.stdout_lines[1] != "inactive"
+- name: install  epel-release for CentOS
+  when: check_fail2ban is failed
   ansible.builtin.package:
     name: epel-release
     state: present
 
 - name: Install fail2ban
-  when: check_fail2ban.stdout_lines[1] != "install" and check_fail2ban.stdout_lines[1] != "active" and check_fail2ban.stdout_lines[1] != "inactive"
+  when: check_fail2ban is failed
   ansible.builtin.package:
     name: fail2ban
     state: present
 
 - name: Configure fail2ban
-  when: check_fail2ban.stdout_lines[1] != "install"
   ansible.builtin.copy:
     src: ./files/jail.local
     dest: /etc/fail2ban/jail.local
     owner: root
     group: root
     mode: '0644'
+  register: conf_fail2ban
 
 - name: Reload service fail2ban, after config
-  when: check_fail2ban.stdout_lines[1] != "install"
   ansible.builtin.service:
     name: fail2ban
     state: reloaded
@@ -102,24 +108,32 @@
     if egrep '(Debian|Ubuntu)' /etc/os-release -q; then \
     dpkg -s sendmail | grep -Po '(?<=Status: )\S+' 2>&1;\
     elif egrep '(CentOS|Red Hat)' /etc/os-release -q; then \
-    which sendmail8 2>&1 | grep -Po '(?<=\/usr\/bin\/which: )\S+.\w+'
+    which sendmail 2>&1;\
     fi
   register: check_sendmail
+  ignore_errors: yes
 
 - name: Install sendmail (for fail2ban)
-  when: check_sendmail.stdout_lines[1] != "install" and check_sendmail.stdout_lines[1] != "no sendmail"
+  when: check_sendmail is failed
   ansible.builtin.package:
-    name: ntpdate
+    name: sendmail
     state: present
 
 
-- name: Install pexpect for ansible.builtin.expect
+- name: Install pexpect for ansible.builtin.expect (debian)
   ansible.builtin.package:
     name: python3-pexpect
     state: present
+  ignore_errors: yes
+
+- name: Install pexpect for ansible.builtin.expect (centos)
+  ansible.builtin.package:
+    name: pexpect
+    state: present
+  ignore_errors: yes
 
 - name: Exec sendmailconfig
-  when: check_sendmail.stdout_lines[1] != "install"
+  when: check_sendmail is failed
   ansible.builtin.expect:
     command: sendmailconfig
     responses:
