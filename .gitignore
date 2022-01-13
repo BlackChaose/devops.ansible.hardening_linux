@@ -2,3 +2,4 @@
 .vagrant/
 vagrant.rsa
 vagrant.rsa.pub
+python_install.txt

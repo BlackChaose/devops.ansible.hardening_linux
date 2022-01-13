@@ -1,33 +1,157 @@
-#- name: Install or update PyPy
-#  when: python_version is failed or 'Python 3' not in python_version.stdout
-#  raw: |
-#    if egrep '(Debian|Ubuntu)' /etc/os-release -q; then \
-#      apt update; \
-#      apt -y install python3 python-setuptools python3-setuptools && update-alternatives --install /usr/bin/python python /usr/bin/python3 10; \
-#    else \
-#      mkdir --parents /opt/bin && \
-#      curl --silent --show-error --location https://github.com//squeaky-pl/portable-pypy/releases/download/{{ pypy_version }}/{{ pypy_version }}-linux_x86_64-portable.tar.bz2 | tar xjf - --directory=/tmp && \
-#      mv --force /tmp/{{ pypy_version }}-linux_x86_64-portable /opt/pypy && \
-#      ln --symbolic --no-dereference --force /opt/pypy/bin/pypy /opt/bin/python; \
-#    fi
-#  changed_when: false
-
 - name: get python version
   raw: |
-    python --version 2>&1
+
+    if(which python3); then \
+     python3 --version 2>&1; \
+    elif(which python); then \
+      python --version 2>&1; \
+    else \
+     echo "Python no!" 2>&1; \
+    fi
   register: python_version
   ignore_errors: yes
 
-- name: message check python version
+- name: Message check python version
   ansible.builtin.debug:
-    msg: "{{python_version.stdout | regex_search('(?<=Python )...')}}"
+    msg: "{{python_version.stdout | regex_search('(?<=Python )....')}}"
   register: python_version_num
 
-#- name: Install Python ver. 3.10 from source
-#  when: python_version is failed
-#  raw: |
-#    if egrep '(Debian|Ubuntu)' /etc/os-release -q; then \
-#      apt update; \
-#      apt -y install python3 python-setuptools python3-setuptools && update-alternatives --install /usr/bin/python python /usr/bin/python3 10; \
-#    fi
-#  changed_when: false
+- name: Install Python ver. 3.10 from source
+  when: python_version_num.msg == "no!" or python_version_num.msg not in ["3.6.", "3.7.", "3.8.", "3.9.", "3.10"]
+  raw: |
+    if egrep '(Debian|Ubuntu)' /etc/os-release -q; then \
+      sudo apt-get install -y wget; \
+      sudo apt-get update; \
+      sudo apt-get install -y build-essential gdb lcov pkg-config libbz2-dev libffi-dev libgdbm-dev libgdbm-compat-dev liblzma-dev libncurses5-dev libreadline6-dev libsqlite3-dev libssl-dev lzma lzma-dev tk-dev uuid-dev zlib1g-dev python3-pexpect; \
+    elif egrep '(CentOS|Red Hat)' /etc/os-release -q; then \
+      sudo yum install -y wget
+      sudo yum install -y yum-utils
+      sudo yum-builddep -y python3
+    fi; \
+      wget https://www.python.org/ftp/python/3.10.1/Python-3.10.1.tar.xz; \
+      tar -xvf ./Python-3.10.1.tar.xz; \
+      cd ./Python-3.10.1; \
+      ./configure; \
+      make; \
+      make install; \
+      sudo ln -sf /usr/local/bin/python3 /usr/bin/python3; \
+
+  changed_when: false
+
+- name: Get timezone
+  ansible.builtin.command: timedatectl
+  register: tz
+
+- name: filter tz
+  ansible.builtin.debug:
+    msg: "{{ tz.stdout | regex_search('(?<=Time zone: )[a-zA-Z]+')}}"
+  register: timezone
+
+- name: Set timezone to Europe/Moscow
+  when: timezone.msg != "Europe/Moscow"
+  community.general.timezone:
+    name: Europe/Moscow
+
+- name: Get ntp status
+  raw: |
+    timedatectl | grep -Po '(?<=NTP service: ).*'; \
+  register: ntp_status
+
+- name: Enable ntp
+  when: ntp_status.stdout_lines[1] == "inactive"
+  shell: sudo timedatectl set-ntp on
+
+- name: check installed fail2ban
+  raw: |
+    if egrep '(Debian|Ubuntu)' /etc/os-release -q; then \
+    dpkg -s fail2ban | grep -Po '(?<=Status: )\S+' 2>&1;\
+    elif egrep '(CentOS|Red Hat)' /etc/os-release -q; then \
+    systemctl status "fail2ban.service" | grep -Po '(?<=Active: )\S+'
+    fi; \
+  register: check_fail2ban
+
+- name: instll  epel-release for CentOS
+  when: check_fail2ban.stdout_lines[1] != "install" and check_fail2ban.stdout_lines[1] != "active" and check_fail2ban.stdout_lines[1] != "inactive"
+  ansible.builtin.package:
+    name: epel-release
+    state: present
+
+- name: Install fail2ban
+  when: check_fail2ban.stdout_lines[1] != "install" and check_fail2ban.stdout_lines[1] != "active" and check_fail2ban.stdout_lines[1] != "inactive"
+  ansible.builtin.package:
+    name: fail2ban
+    state: present
+
+- name: Configure fail2ban
+  when: check_fail2ban.stdout_lines[1] != "install"
+  ansible.builtin.copy:
+    src: ./files/jail.local
+    dest: /etc/fail2ban/jail.local
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Reload service fail2ban, after config
+  when: check_fail2ban.stdout_lines[1] != "install"
+  ansible.builtin.service:
+    name: fail2ban
+    state: reloaded
+
+- name: Check sendmail
+  raw: |
+    if egrep '(Debian|Ubuntu)' /etc/os-release -q; then \
+    dpkg -s sendmail | grep -Po '(?<=Status: )\S+' 2>&1;\
+    elif egrep '(CentOS|Red Hat)' /etc/os-release -q; then \
+    which sendmail8 2>&1 | grep -Po '(?<=\/usr\/bin\/which: )\S+.\w+'
+    fi
+  register: check_sendmail
+
+- name: Install sendmail (for fail2ban)
+  when: check_sendmail.stdout_lines[1] != "install" and check_sendmail.stdout_lines[1] != "no sendmail"
+  ansible.builtin.package:
+    name: ntpdate
+    state: present
+
+
+- name: Install pexpect for ansible.builtin.expect
+  ansible.builtin.package:
+    name: python3-pexpect
+    state: present
+
+- name: Exec sendmailconfig
+  when: check_sendmail.stdout_lines[1] != "install"
+  ansible.builtin.expect:
+    command: sendmailconfig
+    responses:
+      Configure sendmail with the existing \/etc\/mail\/sendmail\.conf\? \[Y\]: y
+      Configure sendmail with the existing \/etc\/mail\/sendmail\.mc\? \[Y\]: y
+      Reload the running sendmail now with the new configuration\? \[Y\]: y
+    timeout: 120
+
+- name: Configure ssh-server
+  ansible.builtin.copy:
+    src: ./files/sshd_config
+    dest: /etc/ssh/sshd_config
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Copy issue.net
+  ansible.builtin.copy:
+    src: ./files/issue.net
+    dest: /etc/issue.net
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Check Automounting
+  ansible.builtin.shell: systemctl is-enabled autofs
+  register: status_autofs
+  ignore_errors: yes
+
+- name: Disable Automounting
+  when: status_autofs.stdout == "enabled"
+  ansible.builtin.systemd:
+    name: autofs
+    enabled: no
+

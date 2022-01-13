@@ -1,0 +1,72 @@
+#
+#for lab4 "hardening linux"
+#
+
+[INCLUDES]
+
+before = paths-debian.conf
+
+[DEFAULT]
+
+bantime.increment = true
+bantime.rndtime = 178
+bantime.maxtime = 259200
+bantime.factor = 2
+bantime.formula = ban.Time * math.exp(float(ban.Count+1)*banFactor)/math.exp(1*banFactor)
+
+# --------------------
+
+ignoreself = true
+ignoreip = 127.0.0.1/8 ::1
+ignorecommand =
+bantime  = 15m
+findtime  = 10m
+maxretry = 5
+maxmatches = %(maxretry)s
+backend = auto
+usedns = warn
+logencoding = "utf-8"
+enabled = false
+mode = normal
+filter = %(__name__)s[mode=%(mode)s]
+
+#
+# ACTIONS
+#
+
+destemail = root@localhost
+sender = root@<fq-hostname>
+mta = sendmail
+protocol = tcp
+chain = <known/chain>
+port = 0:65535
+fail2ban_agent = Fail2Ban/%(fail2ban_version)s
+banaction = iptables-multiport
+banaction_allports = iptables-allports
+
+action_ = %(banaction)s[name=%(__name__)s, port="%(port)s", protocol="%(protocol)s", chain="%(chain)s"]
+action_mwl = %(banaction)s[name=%(__name__)s, port="%(port)s", protocol="%(protocol)s", chain="%(chain)s"]
+             %(mta)s-whois-lines[name=%(__name__)s, sender="%(sender)s", dest="%(destemail)s", logpath="%(logpath)s", chain="%(chain)s"]
+
+action = %(action_mwl)s
+
+#
+# JAILS
+#
+
+[sshd]
+enabled = true
+mode   = normal
+port    = ssh
+logpath = %(sshd_log)s
+backend = %(sshd_backend)s
+maxretry  = 3
+findtime  = 1d
+bantime   = 4w
+ignoreip  = 127.0.0.1/8
+
+[pam-generic]
+# pam-generic filter can be customized to monitor specific subset of 'tty's
+banaction = %(banaction_allports)s
+logpath  = %(syslog_authpriv)s
+backend  = %(syslog_backend)s
