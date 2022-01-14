@@ -1,0 +1,63 @@
+- name: Get OS type
+  raw: |
+    if egrep '(Debian|Ubuntu)' /etc/os-release -q; then \
+    echo "debian"
+    elif egrep '(CentOS|Red)' /etc/os-release -q; then \
+    echo "rhel"
+    fi
+  register: os_type_
+
+- name: Show OS type
+  ansible.builtin.debug:
+    msg: "{{os_type_}}"
+
+#- name: Get OS
+#  when: ansible_distribution == "{{item.os_name}}"
+#  ansible.builtin.shell: "echo {{item.os_family}}"
+#  register: os_type
+#  with_items:
+#    - os_name: "Ubuntu"
+#      os_family: "debian"
+#    - os_name: "Debian"
+#      os_family: "debian"
+#    - os_name: "CentOS"
+#      os_family: "rhel"
+#    - os_name: "Red Hat"
+#      os_family: "rhel"
+#    - os_name: "Fedora"
+#      os_family: "rhel"
+
+- debug: var=ansible_distribution
+- debug: var=os_type
+
+- name: facts
+  ansible.builtin.debug:
+    var: ansible_os_family, ansible_python_version
+
+- name: Get service facts
+  ansible.builtin.service_facts:
+
+- name: check if fail2ban
+  when: ansible_facts.services["fail2ban.service"] is not defined
+  ansible.builtin.debug:
+    msg: not installed
+
+- name: (RedHat)- sendmail proofing
+  when: ansible_os_family == "RedHat"
+  ansible.builtin.stat:
+    path: /usr/sbin/sendmail
+  register: check_sendmail
+
+- name: (Debian)- sendmail proofing
+  when: ansible_os_family == "Debian"
+  ansible.builtin.stat:
+    path: /usr/sbin/sendmail
+  register: check_sendmail
+
+- name: Install sendmail (for fail2ban)
+  when: check_sendmail.stat.exists is false
+  ansible.builtin.package:
+    name: sendmail
+    state: present
+
+- debug: var=check_sendmail

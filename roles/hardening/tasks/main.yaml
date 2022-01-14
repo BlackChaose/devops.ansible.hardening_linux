@@ -16,7 +16,7 @@
   register: python_version_num
 
 - name: Install Python ver. 3.10 from source
-  when: python_version_num.msg == "no!" or python_version_num.msg not in ["3.7.", "3.8.", "3.9.", "3.10"]
+  when: python_version_num.msg == "no!" or python_version_num.msg not in ["3.10"]
   raw: |
     if egrep '(Debian|Ubuntu)' /etc/os-release -q; then \
       sudo apt-get update; \
@@ -67,18 +67,14 @@
   when: ntp_status_filtered.msg == "inactive"
   shell: sudo timedatectl set-ntp on
 
-- name: check installed fail2ban
-  raw: |
-    if egrep '(Debian|Ubuntu)' /etc/os-release -q; then \
-    dpkg -s fail2ban | grep -Po '(?<=Status: )\S+' 2>&1;\
-    elif egrep '(CentOS|Red Hat)' /etc/os-release -q; then \
-    systemctl status "fail2ban.service" | grep -Po '(?<=Active: )\S+'
-    fi; \
+- name: (All)- check if fail2ban
+  when: ansible_facts.services["fail2ban.service"] is not defined
+  ansible.builtin.debug:
+    msg: not installed
   register: check_fail2ban
-  ignore_errors: yes
 
-- name: install  epel-release for CentOS
-  when: check_fail2ban is failed
+- name: (RedHat)- install  epel-release for CentOS
+  when: check_fail2ban is failed and ansible_os_family == "RedHat"
   ansible.builtin.package:
     name: epel-release
     state: present
@@ -103,30 +99,32 @@
     name: fail2ban
     state: reloaded
 
-- name: Check sendmail
-  raw: |
-    if egrep '(Debian|Ubuntu)' /etc/os-release -q; then \
-    dpkg -s sendmail | grep -Po '(?<=Status: )\S+' 2>&1;\
-    elif egrep '(CentOS|Red Hat)' /etc/os-release -q; then \
-    which sendmail 2>&1;\
-    fi
+- name: (RedHat)- sendmail proofing
+  when: ansible_os_family == "RedHat"
+  ansible.builtin.stat:
+    path: /usr/sbin/sendmail
   register: check_sendmail
-  ignore_errors: yes
+
+- name: (Debian)- sendmail proofing
+  when: ansible_os_family == "Debian"
+  ansible.builtin.stat:
+    path: /usr/sbin/sendmail
+  register: check_sendmail
 
 - name: Install sendmail (for fail2ban)
-  when: check_sendmail is failed
+  when: check_sendmail.stat.exists is false
   ansible.builtin.package:
     name: sendmail
     state: present
 
 
-- name: Install pexpect for ansible.builtin.expect (debian)
+- name: (Debian)- Install pexpect for ansible.builtin.expect
   ansible.builtin.package:
     name: python3-pexpect
     state: present
   ignore_errors: yes
 
-- name: Install pexpect for ansible.builtin.expect (centos)
+- name: (RedHat)- Install pexpect for ansible.builtin.expect
   ansible.builtin.package:
     name: pexpect
     state: present
