@@ -1,6 +1,7 @@
 - name: lab hardening
   become: true
   hosts: all
-  gather_facts: yes
+  gather_facts: true
   roles:
+  - default_updates
   - hardening

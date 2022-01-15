@@ -1,0 +1,9 @@
+packets:
+  - wget
+  - vim
+  - yum-utils
+  - make
+  - gcc
+  - openssl-devel
+  - libffi-devel
+  - zlib-devel

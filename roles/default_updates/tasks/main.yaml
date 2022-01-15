@@ -1,0 +1,68 @@
+---
+- name: Load a variable file based on the OS type
+  include_vars: "{{ lookup('first_found', params) }}"
+  vars:
+    params:
+      files:
+        - '{{ ansible_os_family }}.yaml'
+      paths:
+        - 'vars'
+
+- name: (RedHat)- Update packages
+  when: ansible_facts['os_family'] == "RedHat"
+  yum:
+    update_cache: true
+    update_only: true
+
+- name: (Debian)- Updates packages
+  when: ansible_facts['os_family'] == "Debian"
+  apt:
+    upgrade: true
+    update_cache: true
+    cache_valid_time: 86400
+
+- name: (RedHat)- install required soft
+  when: ansible_facts['os_family'] == "RedHat"
+  yum:
+    name: "{{ packets }}"
+    state: present
+
+- name: (Debian)- install required soft
+  when: ansible_facts['os_family'] == "Debian"
+  apt:
+    name: "{{ packets }}"
+    state: present
+
+- name: Get Python version
+  raw: |
+    if(which python3); then \
+     python3 --version 2>&1; \
+    elif(which python); then \
+      python --version 2>&1; \
+    else \
+     echo "Python no!" 2>&1; \
+    fi
+  register: python_version
+  changed_when: python_version.rc != 0
+
+- name: Message check python version
+  ansible.builtin.debug:
+    msg: "{{ python_version.stdout | regex_search('(?<=Python )....') }}"
+  register: python_version_num
+
+- name: Install Python ver. 3.10 from source
+  when: python_version_num.msg == "no!" or python_version_num.msg not in ["3.10"]
+  raw: |
+    if egrep '(Debian|Ubuntu)' /etc/os-release -q; then \
+      echo "nothing"; \
+    elif egrep '(CentOS|Red Hat)' /etc/os-release -q; then \
+      sudo yum-builddep -y python3; \
+    fi
+      wget https://www.python.org/ftp/python/3.10.1/Python-3.10.1.tar.xz; \
+      tar -xvf ./Python-3.10.1.tar.xz; \
+      cd ./Python-3.10.1; \
+      sudo ./configure; \
+      sudo make; \
+      sudo make install; \
+      sudo ln -sf /usr/local/bin/python3 /usr/bin/python3; \
+  changed_when: false

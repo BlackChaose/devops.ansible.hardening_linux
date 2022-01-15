@@ -1,6 +1,0 @@
-- name: lab hardening
-  become: true
-  hosts: all
-  gather_facts: yes
-  roles:
-  - test

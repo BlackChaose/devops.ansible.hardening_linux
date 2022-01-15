@@ -15,27 +15,22 @@ Vagrant.configure("2") do |config|
    n.vm.hostname = "HW1-#{machine_id}"
    n.vm.network "private_network", ip: "192.168.56.211"
    n.vm.box = "centos/8"
+   n.vm.provision :ansible do |ansible|
+          ansible.limit = "all"
+          ansible.playbook = "playbook1.yaml"
+          ansible.raw_arguments = [ "-D"]
+      end
   end
 
-#machine_id = 2
-#  config.vm.define "HW1-#{machine_id}" do |n|
-#   n.vm.hostname = "HW1-#{machine_id}"
-#   n.vm.network "private_network", ip: "192.168.56.212"
-#   n.vm.box = "debian/jessie64"
-#  end
-
-machine_id = 3
+ machine_id = 3
   config.vm.define "HW1-#{machine_id}" do |n|
    n.vm.hostname = "HW1-#{machine_id}"
    n.vm.network "private_network", ip: "192.168.56.213"
    n.vm.box = "ubuntu/focal64"
+      n.vm.provision :ansible do |ansible|
+          ansible.limit = "all"
+          ansible.playbook = "playbook_1.yaml"
+          ansible.raw_arguments = [ "-D"]
+      end
   end
-
-#machine_id = 4
-#  config.vm.define "HW1-#{machine_id}" do |n|
-#   n.vm.hostname = "HW1-#{machine_id}"
-#   n.vm.network "private_network", ip: "192.168.56.214"
-#   n.vm.box = "centos/7"
-#   n.vm.box_version = "1.0.0"
-#  end
 end

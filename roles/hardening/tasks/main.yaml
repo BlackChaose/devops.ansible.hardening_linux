@@ -1,52 +1,12 @@
-- name: get python version
-  raw: |
-    if(which python3); then \
-     python3 --version 2>&1; \
-    elif(which python); then \
-      python --version 2>&1; \
-    else \
-     echo "Python no!" 2>&1; \
-    fi
-  register: python_version
-  ignore_errors: yes
-
-- name: Message check python version
-  ansible.builtin.debug:
-    msg: "{{python_version.stdout | regex_search('(?<=Python )....')}}"
-  register: python_version_num
-
-- name: Install Python ver. 3.10 from source
-  when: python_version_num.msg == "no!" or python_version_num.msg not in ["3.10"]
-  raw: |
-    if egrep '(Debian|Ubuntu)' /etc/os-release -q; then \
-      sudo apt-get update; \
-      sudo apt-get install -y wget build-essential gdb lcov pkg-config libbz2-dev libffi-dev libgdbm-dev libgdbm-compat-dev liblzma-dev libncurses5-dev libreadline6-dev libsqlite3-dev libssl-dev lzma lzma-dev tk-dev uuid-dev zlib1g-dev python3-pexpect; \
-    elif egrep '(CentOS|Red Hat)' /etc/os-release -q; then \
-      sudo yum -y update; \
-      sudo yum install -y wget yum-utils make gcc openssl-devel libffi-devel zlib-devel; \
-      sudo yum-builddep -y python3; \
-      echo "etap 1" >> 1.txt
-    fi
-      wget https://www.python.org/ftp/python/3.10.1/Python-3.10.1.tar.xz; \
-      tar -xvf ./Python-3.10.1.tar.xz; \
-      cd ./Python-3.10.1; \
-      echo "pre configure" >> /home/vagrant/1.txt
-      sudo ./configure; \
-      echo "pre make" >> /home/vagrant/1.txt
-      sudo make; \
-      echo "pre install" >> /home/vagrant/1.txt
-      sudo make install; \
-      echo "pre ln -sf" >> /home/vagrant/1.txt
-      sudo ln -sf /usr/local/bin/python3 /usr/bin/python3; \
-  changed_when: false
-
+---
 - name: Get timezone
   ansible.builtin.command: timedatectl
   register: tz
+  changed_when: tz.rc != 0
 
 - name: filter tz
   ansible.builtin.debug:
-    msg: "{{ tz.stdout | regex_search('(?<=Time zone: )[a-zA-Z\/]+')}}"
+    msg: "{{ tz.stdout | regex_search('(?<=Time zone: )[a-zA-Z\/]+') }}"
   register: timezone
 
 - name: Set timezone to Europe/Moscow
@@ -57,15 +17,16 @@
 - name: Get ntp status
   ansible.builtin.command: timedatectl
   register: ntp_status
+  changed_when: ntp_status.rc != 0
 
 - name: Filter ntp_status
   ansible.builtin.debug:
-    msg: "{{ ntp_status.stdout | regex_search('(?<=NTP service: ).*')}}"
+    msg: "{{ ntp_status.stdout | regex_search('(?<=NTP service: ).*') }}"
   register: ntp_status_filtered
 
 - name: Enable ntp
   when: ntp_status_filtered.msg == "inactive"
-  shell: sudo timedatectl set-ntp on
+  ansible.builtin.command: sudo timedatectl set-ntp on
 
 - name: (All)- check if fail2ban
   when: ansible_facts.services["fail2ban.service"] is not defined
@@ -74,13 +35,13 @@
   register: check_fail2ban
 
 - name: (RedHat)- install  epel-release for CentOS
-  when: check_fail2ban is failed and ansible_os_family == "RedHat"
+  when: check_fail2ban.msg == "not installed" and ansible_os_family == "RedHat"
   ansible.builtin.package:
     name: epel-release
     state: present
 
 - name: Install fail2ban
-  when: check_fail2ban is failed
+  when: check_fail2ban.msg == "not installed"
   ansible.builtin.package:
     name: fail2ban
     state: present
@@ -119,16 +80,19 @@
 
 
 - name: (Debian)- Install pexpect for ansible.builtin.expect
+  when: ansible_os_family == "Debian"
   ansible.builtin.package:
     name: python3-pexpect
     state: present
-  ignore_errors: yes
+  register: pexpect_inst_result_deb
+  failed_when: pexpect_inst_result_deb.rc != 0
 
 - name: (RedHat)- Install pexpect for ansible.builtin.expect
-  ansible.builtin.package:
-    name: pexpect
-    state: present
-  ignore_errors: yes
+  when: ansible_os_family == "RedHat"
+  pip:
+    name: pexpect>3.3
+  register: pexpect_inst_result_rhl
+  failed_when: pexpect_inst_result_rhl.rc != 0
 
 - name: Exec sendmailconfig
   when: check_sendmail is failed
@@ -156,14 +120,14 @@
     group: root
     mode: '0644'
 
-- name: Check Automounting
-  ansible.builtin.shell: systemctl is-enabled autofs
+- name: Automounting proofing
+  when: ansible_facts.services["autofs.service"] is not defined
+  ansible.builtin.debug:
+    msg: not installed
   register: status_autofs
-  ignore_errors: yes
 
 - name: Disable Automounting
-  when: status_autofs.stdout == "enabled"
+  when: ansible_facts.services["autofs.service"] is defined and status_autofs.msg != "not installed"
   ansible.builtin.systemd:
     name: autofs
-    enabled: no
-
+    enabled: false
