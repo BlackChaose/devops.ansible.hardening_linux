@@ -84,15 +84,12 @@
   ansible.builtin.package:
     name: python3-pexpect
     state: present
-  register: pexpect_inst_result_deb
-  failed_when: pexpect_inst_result_deb.rc != 0
 
 - name: (RedHat)- Install pexpect for ansible.builtin.expect
   when: ansible_os_family == "RedHat"
   pip:
     name: pexpect>3.3
   register: pexpect_inst_result_rhl
-  failed_when: pexpect_inst_result_rhl.rc != 0
 
 - name: Exec sendmailconfig
   when: check_sendmail is failed

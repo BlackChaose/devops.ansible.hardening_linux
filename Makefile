@@ -1,7 +1,7 @@
 run_test:
 	ansible-playbook playbook_test.yaml -i hosts
 run_prod:
-	ansible-playbook playbook.yaml -i hosts
+	ansible-playbook playbook1.yaml -i hosts
 test:
 	ansible-lint playbook_test.yaml test
 	ansible-playbook playbook_test.yaml -i hosts
