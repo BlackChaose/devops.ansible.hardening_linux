@@ -3,6 +3,15 @@ Hardening Linux with ansible
 
 ---
 
+**requirements**
+
+- linux, for example [ubuntu20.04](https://ubuntu.com/#download) 
+- [python ver.3^](https://www.python.org/downloads/)
+- [ansible ver.2.11^](https://github.com/ansible/ansible)
+- [virtualbox ver.6.1^](https://www.virtualbox.org/wiki/Downloads)
+
+---
+
 **to start work**
 
 - generate a pair of key 
