@@ -61,8 +61,7 @@
       wget https://www.python.org/ftp/python/3.10.1/Python-3.10.1.tar.xz; \
       tar -xvf ./Python-3.10.1.tar.xz; \
       cd ./Python-3.10.1; \
-      sudo ./configure; \
+      sudo ./configure --enable-optimizations; \
       sudo make; \
-      sudo make install; \
-      sudo ln -sf /usr/local/bin/python3 /usr/bin/python3; \
+      sudo make altinstall; \
   changed_when: false
