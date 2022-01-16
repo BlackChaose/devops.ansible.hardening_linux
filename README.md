@@ -9,6 +9,7 @@ Hardening Linux with ansible
 - [python ver.3^](https://www.python.org/downloads/)
 - [ansible ver.2.11^](https://github.com/ansible/ansible)
 - [virtualbox ver.6.1^](https://www.virtualbox.org/wiki/Downloads)
+- [vagrant ver.2.2.19^](https://www.vagrantup.com/downloads)
 
 ---
 
